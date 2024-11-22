@@ -99,7 +99,7 @@ if __name__ == "__main__":
             os.makedirs(saved_folder)
 
         dt = BIDVUniformDataset("datasets/uniform_bidv/three_classes", 64)
-        model = ViT.load_from_checkpoint(ckpt_path)
+        model = ViTBase.load_from_checkpoint(ckpt_path)
 
         evaluator = Evaluator(model, dt.dataloaders["test"], saved_folder, True)
         evaluator.evaluate()

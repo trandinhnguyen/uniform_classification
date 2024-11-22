@@ -12,6 +12,8 @@ from torchmetrics.functional.classification import (
 from transformers import ViTForImageClassification
 import timm
 
+# from fastervit import create_model
+
 
 class Model(L.LightningModule):
     def __init__(self, n_classes, lr, class_weights):
@@ -114,11 +116,37 @@ class ViTTiny(Model):
         return self.model(inputs)
 
 
+# TODO: BUG
+class FasterVit(Model):
+
+    def __init__(self, n_classes, lr, class_weights):
+        super().__init__(n_classes, lr, class_weights)
+        self.model = create_model(
+            "faster_vit_0_224", pretrained=True, model_path="faster_vit_0.pth.tar"
+        )
+
+    def forward(self, inputs):
+        return self.model(inputs)
+
+
+class FastViT(Model):
+    def __init__(self, n_classes, lr, class_weights):
+        super().__init__(n_classes, lr, class_weights)
+        self.model = timm.create_model(
+            "fastvit_t8.apple_in1k", pretrained=True, num_classes=n_classes
+        )
+
+    def forward(self, inputs):
+        return self.model(inputs)
+
+
 if __name__ == "__main__":
-    model = ViTTiny(3, 1, [1, 1, 1])
+    model = FastViT(3, 1, [1, 1, 1])
     model.eval()
+    # print(model)
+
     with torch.no_grad():
         out = model(torch.randn(10, 3, 224, 224))
+        
     print(out.shape)
-    # print(model)
     print(f"{model.num_params():,}")

@@ -81,12 +81,12 @@ def train(
 
 if __name__ == "__main__":
     batch_size = 32
-    n_epochs = 70
+    n_epochs = 30
     project = "bidv_uniform_classification"
-    name = "vit"
+    name = "ViTTiny_3classes"
 
     dt = BIDVUniformDataset("datasets/uniform_bidv/three_classes")
-    model = ViT(n_classes=3, lr=1e-4, class_weights=[0.451774, 0.182833, 0.365400])
+    model = ViTTiny(n_classes=3, lr=1e-4, class_weights=[0.451774, 0.182833, 0.365400])
     train(
         model,
         dt.dataloaders,
