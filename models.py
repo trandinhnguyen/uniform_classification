@@ -103,6 +103,18 @@ class MobileNetV2(Model):
         return self.model(inputs)
 
 
+class MobileNetV3(Model):
+    def __init__(self, n_classes, lr, class_weights):
+        super().__init__(n_classes, lr, class_weights)
+        self.model = torchvision.models.mobilenet_v3_small(
+            weights=torchvision.models.MobileNet_V3_Small_Weights.IMAGENET1K_V1,
+        )
+        self.model.classifier[-1] = nn.Linear(1024, n_classes)
+
+    def forward(self, inputs):
+        return self.model(inputs)
+
+
 class ViTTiny(Model):
     def __init__(self, n_classes, lr, class_weights):
         super().__init__(n_classes, lr, class_weights)
@@ -141,12 +153,13 @@ class FastViT(Model):
 
 
 if __name__ == "__main__":
-    model = FastViT(3, 1, [1, 1, 1])
+    model = MobileNetV3(3, 1, [1] * 3)
+
     model.eval()
-    # print(model)
+    print(model)
 
     with torch.no_grad():
         out = model(torch.randn(10, 3, 224, 224))
-        
+
     print(out.shape)
     print(f"{model.num_params():,}")

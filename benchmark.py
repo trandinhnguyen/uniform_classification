@@ -90,7 +90,7 @@ class Evaluator:
 
 if __name__ == "__main__":
     for ckpt_name in ["best", "last"]:
-        ckpt_path = f"bidv_uniform_classification/j8vjy64f/checkpoints/{ckpt_name}.ckpt"
+        ckpt_path = f"bidv_uniform_classification/v4qz8tyo/checkpoints/{ckpt_name}.ckpt"
 
         splited_path = ckpt_path.split("/")
         saved_folder = os.path.join("output", splited_path[-3], splited_path[-1][:4])
@@ -99,7 +99,7 @@ if __name__ == "__main__":
             os.makedirs(saved_folder)
 
         dt = BIDVUniformDataset("datasets/uniform_bidv/three_classes", 64)
-        model = ViTBase.load_from_checkpoint(ckpt_path)
+        model = MobileNetV2.load_from_checkpoint(ckpt_path)
 
         evaluator = Evaluator(model, dt.dataloaders["test"], saved_folder, True)
         evaluator.evaluate()
