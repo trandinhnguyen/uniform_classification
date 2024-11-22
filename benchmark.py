@@ -6,97 +6,100 @@ import matplotlib.pyplot as plt
 from sklearn import metrics
 
 import torch
+import torch.utils
+import torch.utils.data
 import torch.nn as nn
 import torch.nn.functional as F
+import lightning as L
 
 from preprocessing import *
 from models import *
 
 
-def get_results(logits, labels, all_labels, all_probs, all_preds):
-    probs = F.softmax(logits, dim=1).cpu().numpy()
-    preds = logits.argmax(1).cpu().numpy()
-    all_labels = np.concatenate((all_labels, labels.cpu().numpy()))
-    all_probs = np.concatenate((all_probs, probs[:, 1]))
-    all_preds = np.concatenate((all_preds, preds))
-    return all_labels, all_probs, all_preds
+class Evaluator:
+    def __init__(
+        self,
+        model: L.LightningModule,
+        dataloader: torch.utils.data.DataLoader,
+        saved_folder: str,
+        save_pr_curve: bool,
+    ):
+        self.model = model
+        self.dataloader = dataloader
+        self.saved_folder = saved_folder
+        self.save_pr_curve = save_pr_curve
 
+        self.model.eval()
 
-def save_metrics(labels, preds, folder, suffix):
-    report = metrics.classification_report(
-        labels, preds, target_names=["no", "yes"], output_dict=True
-    )
-    output_filename = f"output/{folder}/metric_scores_{suffix}.json"
-    with open(output_filename, "w", encoding="utf-8") as f:
-        json.dump(report, f, ensure_ascii=False, indent=4)
+    def evaluate(self):
+        # Only the probability of the positive class will be stored
+        self.all_labels, self.all_probs, self.all_preds = [], [], []
 
+        for images, labels in tqdm(self.dataloader):
+            self.all_labels = np.concatenate((self.all_labels, labels.numpy()))
+            images, labels = images.to(model.device), labels.to(model.device)
 
-def save_pr_curve_plot(all_labels, all_probs, folder, suffix):
-    eps = 1e-12
-    precisions, recalls, thresholds = metrics.precision_recall_curve(
-        all_labels, all_probs
-    )
-    avg_precision = metrics.average_precision_score(all_labels, all_probs)
-    f1_scores = 2 / (1 / (precisions + eps) + 1 / (recalls + eps))
-    best_idx = f1_scores.argmax()
+            with torch.no_grad():
+                logits = model(images)
 
-    plt.figure(figsize=(6, 6))
-    plt.plot(recalls, precisions, label=f"AP={avg_precision:.3f}")
-    plt.plot(
-        recalls[best_idx],
-        precisions[best_idx],
-        "ro",
-        label=f"Highest F1: T={thresholds[best_idx]:.3f}, "
-        + f"P={precisions[best_idx]:.4f}, R={recalls[best_idx]:.4f}",
-    )
-    plt.xlim(-0.01, 1.01)
-    plt.ylim(-0.01, 1.01)
-    plt.xlabel("Recall")
-    plt.ylabel("Precision")
-    plt.legend()
-    plt.savefig(f"output/{folder}/prcurve_{suffix}.jpg")
+            probs = F.softmax(logits, dim=1).cpu().numpy()
+            preds = logits.argmax(1).cpu().numpy()
 
+            # Only the probability of the positive class will be stored
+            self.all_probs = np.concatenate((self.all_probs, probs[:, 1]))
+            self.all_preds = np.concatenate((self.all_preds, preds))
 
-def evaluate_single_dataset(
-    dataloader,
-    model,
-    folder,
-    file_suffix,
-    save_pr_curve=False,
-):
-    # Only the probability of the positive class will be stored
-    all_labels, all_probs, all_preds = [], [], []
-    model.eval()
+        self.save_metrics()
+        if self.save_pr_curve and (np.unique(self.all_labels).size == 2):
+            self.save_pr_curve_plot()
 
-    for images, labels in tqdm(dataloader):
-        images, labels = images.to(model.device), labels.to(model.device)
-        with torch.no_grad():
-            logits = model(images)
-
-        all_labels, all_probs, all_preds = get_results(
-            logits, labels, all_labels, all_probs, all_preds
+    def save_metrics(self):
+        report = metrics.classification_report(
+            self.all_labels, self.all_preds, output_dict=True
         )
+        output_filename = f"{self.saved_folder}/metric_scores.json"
+        with open(output_filename, "w", encoding="utf-8") as f:
+            json.dump(report, f, ensure_ascii=False, indent=4)
 
-    save_metrics(all_labels, all_preds, folder, file_suffix)
-    if save_pr_curve:
-        save_pr_curve_plot(all_labels, all_probs, folder, file_suffix)
+    def save_pr_curve_plot(self):
+        """Only for binary classification"""
+        eps = 1e-12
+        precisions, recalls, thresholds = metrics.precision_recall_curve(
+            self.all_labels, self.all_probs
+        )
+        avg_precision = metrics.average_precision_score(self.all_labels, self.all_probs)
+        f1_scores = 2 / (1 / (precisions + eps) + 1 / (recalls + eps))
+        best_idx = f1_scores.argmax()
+
+        plt.figure(figsize=(6, 6))
+        plt.plot(recalls, precisions, label=f"AP={avg_precision:.3f}")
+        plt.plot(
+            recalls[best_idx],
+            precisions[best_idx],
+            "ro",
+            label=f"Highest F1: T={thresholds[best_idx]:.3f}, "
+            + f"P={precisions[best_idx]:.4f}, R={recalls[best_idx]:.4f}",
+        )
+        plt.xlim(-0.01, 1.01)
+        plt.ylim(-0.01, 1.01)
+        plt.xlabel("Recall")
+        plt.ylabel("Precision")
+        plt.legend()
+        plt.savefig(f"{self.saved_folder}/prcurve.jpg")
 
 
 if __name__ == "__main__":
     for ckpt_name in ["best", "last"]:
-        ckpt_path = f"uniform_classification/easop82o/checkpoints/{ckpt_name}.ckpt"
+        ckpt_path = f"bidv_uniform_classification/j8vjy64f/checkpoints/{ckpt_name}.ckpt"
 
-        split_path = ckpt_path.split("/")
-        saved_folder = os.path.join(split_path[-3], split_path[-1][:4])
-        if not os.path.exists(f"output/{saved_folder}"):
-            os.makedirs(f"output/{saved_folder}")
+        splited_path = ckpt_path.split("/")
+        saved_folder = os.path.join("output", splited_path[-3], splited_path[-1][:4])
 
-        image_dataloaders = uniform_dataloaders("datasets/uniform", 32)
+        if not os.path.exists(saved_folder):
+            os.makedirs(saved_folder)
+
+        dt = BIDVUniformDataset("datasets/uniform_bidv/three_classes", 64)
         model = ViT.load_from_checkpoint(ckpt_path)
-        evaluate_single_dataset(
-            image_dataloaders["val"],
-            model,
-            saved_folder,
-            "uniform",
-            save_pr_curve=True,
-        )
+
+        evaluator = Evaluator(model, dt.dataloaders["test"], saved_folder, True)
+        evaluator.evaluate()

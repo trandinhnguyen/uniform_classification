@@ -10,14 +10,17 @@ from torchmetrics.functional.classification import (
     multiclass_accuracy,
 )
 from transformers import ViTForImageClassification
+import timm
 
 
 class Model(L.LightningModule):
-    def __init__(self, lr, class_weights):
+    def __init__(self, n_classes, lr, class_weights):
         super().__init__()
         self.lr = lr
         self.example_input_array = torch.randn((1, 3, 224, 224))
 
+        assert len(class_weights) == n_classes
+        self.n_classes = n_classes
         self.class_weights = torch.tensor(class_weights)
 
         # save hyper-parameters to self.hparams (auto-logged by W&B)
@@ -65,13 +68,18 @@ class Model(L.LightningModule):
         # must set device location of class weights here to automatically
         # choose device if using multiple gpus
         loss = F.cross_entropy(logits, y, weight=self.class_weights.cuda())
-        acc = torchmetrics.functional.accuracy(preds, y, "binary")
+        acc = torchmetrics.functional.accuracy(
+            preds, y, "multiclass", num_classes=self.n_classes, average="micro"
+        )
         return {f"{phase}/loss": loss, f"{phase}/acc": acc}
 
+    def num_params(self):
+        return sum(p.numel() for p in self.model.parameters())
 
-class ViT(Model):
+
+class ViTBase(Model):
     def __init__(self, n_classes, lr, class_weights):
-        super().__init__(lr, class_weights)
+        super().__init__(n_classes, lr, class_weights)
         vit = ViTForImageClassification.from_pretrained("google/vit-base-patch16-224")
         vit.classifier = nn.Sequential(nn.Dropout(p=0.4), nn.Linear(768, n_classes))
         self.vit = vit
@@ -82,7 +90,7 @@ class ViT(Model):
 
 class MobileNetV2(Model):
     def __init__(self, n_classes, lr, class_weights):
-        super().__init__(lr, class_weights)
+        super().__init__(n_classes, lr, class_weights)
         model = torchvision.models.mobilenet_v2(
             weights=torchvision.models.MobileNet_V2_Weights.IMAGENET1K_V2
         )
@@ -93,9 +101,24 @@ class MobileNetV2(Model):
         return self.model(inputs)
 
 
+class ViTTiny(Model):
+    def __init__(self, n_classes, lr, class_weights):
+        super().__init__(n_classes, lr, class_weights)
+        self.model = timm.create_model(
+            "vit_tiny_patch16_224.augreg_in21k_ft_in1k",
+            pretrained=True,
+            num_classes=n_classes,
+        )
+
+    def forward(self, inputs):
+        return self.model(inputs)
+
+
 if __name__ == "__main__":
-    model = MobileNetV2(1)
+    model = ViTTiny(3, 1, [1, 1, 1])
     model.eval()
     with torch.no_grad():
-        output = model(torch.randn(1, 3, 224, 224))
-    print(output)
+        out = model(torch.randn(10, 3, 224, 224))
+    print(out.shape)
+    # print(model)
+    print(f"{model.num_params():,}")

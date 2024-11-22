@@ -85,8 +85,8 @@ if __name__ == "__main__":
     project = "bidv_uniform_classification"
     name = "vit"
 
-    dt = BIDVUniformDataset("datasets/uniform_bidv/binary")
-    model = ViT(n_classes=2, lr=1e-4, class_weights=[1.213, 1])
+    dt = BIDVUniformDataset("datasets/uniform_bidv/three_classes")
+    model = ViT(n_classes=3, lr=1e-4, class_weights=[0.451774, 0.182833, 0.365400])
     train(
         model,
         dt.dataloaders,
