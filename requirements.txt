@@ -1,0 +1,9 @@
+opencv-python
+numpy==1.26.4
+lightning
+transformers
+tqdm
+matplotlib
+scikit-learn
+pandas
+wandb
