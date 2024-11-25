@@ -29,6 +29,9 @@ class Evaluator:
         self.saved_folder = saved_folder
         self.save_pr_curve = save_pr_curve
 
+        if not os.path.exists(saved_folder):
+            os.makedirs(saved_folder)
+
         self.model.eval()
 
     def evaluate(self):
@@ -89,17 +92,15 @@ class Evaluator:
 
 
 if __name__ == "__main__":
+    dt = BIDVUniformDataset("datasets/uniform_bidv/three_classes", 64)
+
     for ckpt_name in ["best", "last"]:
-        ckpt_path = f"bidv_uniform_classification/v4qz8tyo/checkpoints/{ckpt_name}.ckpt"
+        ckpt_path = f"bidv_uniform_classification/s1t9v9ar/checkpoints/{ckpt_name}.ckpt"
 
         splited_path = ckpt_path.split("/")
         saved_folder = os.path.join("output", splited_path[-3], splited_path[-1][:4])
 
-        if not os.path.exists(saved_folder):
-            os.makedirs(saved_folder)
-
-        dt = BIDVUniformDataset("datasets/uniform_bidv/three_classes", 64)
-        model = MobileNetV2.load_from_checkpoint(ckpt_path)
+        model = MobileNetV3.load_from_checkpoint(ckpt_path)
 
         evaluator = Evaluator(model, dt.dataloaders["test"], saved_folder, True)
         evaluator.evaluate()
