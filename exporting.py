@@ -4,6 +4,7 @@ import glob
 import time
 
 import numpy as np
+from scipy.special import softmax
 import pandas as pd
 import cv2
 from sklearn.metrics import classification_report
@@ -15,10 +16,10 @@ import onnxruntime as ort
 import models
 
 
-class ONNXEvaluator:
-    def __init__(self, model_path, data_csv_path):
+class ONNXModel:
+    def __init__(self, model_path):
         self.model_path = model_path
-        self.data_csv_path = data_csv_path
+
         self.mean = np.array([0.5] * 3, dtype=np.float32).reshape(1, 1, 3)
         self.std = np.array([0.5] * 3, dtype=np.float32).reshape(1, 1, 3)
         self.load_model()
@@ -85,8 +86,14 @@ class ONNXEvaluator:
         )
         return img
 
-    def inference(self):
-        df = pd.read_csv(self.data_csv_path)
+    def inference(self, image_path):
+        img = self.preprocess(image_path)
+        ort_inputs = {self.input_name: img}
+        logit: np.ndarray = self.gpu_session.run(None, ort_inputs)[0]
+        return logit.argmax(1)[0], softmax(logit)
+
+    def evaluate_csv(self, csv_path):
+        df = pd.read_csv(csv_path)
         df = df.reset_index()  # make sure indexes pair with number of rows
         gpu_preds, cpu_preds = [], []
         gpu_time, cpu_time = 0, 0
@@ -117,16 +124,15 @@ class ONNXEvaluator:
 
 
 if __name__ == "__main__":
-    onnx_path = "mobilenet_v3_fp16..onnx"
+    onnx_path = "mobilenet_v3_fp16.onnx"
 
     if not os.path.exists(onnx_path):
         model = models.MobileNetV3.load_from_checkpoint(
-            "bidv_uniform_classification/s1t9v9ar/checkpoints/last.ckpt"
+            "bidv_uniform_classification/icuw0hhe/checkpoints/best.ckpt"
         )
         onnx_path = model.to_onnx_fp16(onnx_path)
 
-    evaluator = ONNXEvaluator(
-        onnx_path,
-        "datasets/uniform_bidv/three_classes/test.csv",
-    )
-    evaluator.inference()
+    onnx_model = ONNXModel(onnx_path)
+    # onnx_model.evaluate()
+    print(onnx_model.inference("datasets/photo_2024-11-14_17-59-49.jpg"))
+    print(onnx_model.inference("datasets/photo_2024-11-14_17-59-50.jpg"))

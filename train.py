@@ -85,9 +85,9 @@ if __name__ == "__main__":
     project = "bidv_uniform_classification"
     name = "mobilenet_v3_3classes"
 
-    dt = BIDVUniformDataset("datasets/uniform_bidv/three_classes")
+    dt = BIDVUniformDataset("datasets/uniform_bidv/three_classes", num_workers=10)
     model = MobileNetV3(
-        n_classes=3, lr=1e-4, class_weights=[0.451774, 0.182833, 0.365400]
+        n_classes=3, lr=1e-4, class_weights=[0.519695, 0.160084, 0.320221]
     )
     train(
         model,

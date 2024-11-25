@@ -50,18 +50,17 @@ class ImageDatasetFromCSV(torch.utils.data.Dataset):
 class BIDVUniformDataset:
 
     def __init__(self, root, batch_size=32, num_workers=8):
-        processor = ViTImageProcessor.from_pretrained("google/vit-base-patch16-224")
-        self.image_mean = processor.image_mean
-        self.image_std = processor.image_std
-        size = processor.size["height"]
+        self.image_mean = [0.5] * 3
+        self.image_std = [0.5] * 3
+        self.size = 224
 
         train_transforms = T.Compose(
             [
                 T.Lambda(lambda img: pad_to_aspect_ratio(img, aspect_ratio=0.75)),
                 T.RandomPerspective(fill=255),
                 T.RandomRotation((0, 360), fill=255),
-                T.Resize(size),
-                T.RandomCrop(size),
+                T.Resize(self.size),
+                T.RandomCrop(self.size),
                 T.ToTensor(),
                 T.Normalize(mean=self.image_mean, std=self.image_std),
             ]
@@ -69,7 +68,7 @@ class BIDVUniformDataset:
         val_transforms = T.Compose(
             [
                 T.Lambda(lambda img: pad_to_aspect_ratio(img, aspect_ratio=0.75)),
-                T.Resize((size, size)),
+                T.Resize((self.size, self.size)),
                 T.ToTensor(),
                 T.Normalize(mean=self.image_mean, std=self.image_std),
             ]
@@ -120,24 +119,27 @@ class BIDVUniformDataset:
 class HTSCUniformDataset:
 
     def __init__(self, root, batch_size=32, num_workers=8):
-        processor = ViTImageProcessor.from_pretrained("google/vit-base-patch16-224")
-        image_mean = processor.image_mean
-        image_std = processor.image_std
-        size = processor.size["height"]
+        self.image_mean = [0.5] * 3
+        self.image_std = [0.5] * 3
+        self.size = 224
 
         train_transforms = T.Compose(
             [
-                T.RandomResizedCrop((size, size)),
-                T.RandomHorizontalFlip(),
+                T.Lambda(lambda img: pad_to_aspect_ratio(img, aspect_ratio=0.75)),
+                T.RandomPerspective(fill=255),
+                T.RandomRotation((0, 360), fill=255),
+                T.Resize(self.size),
+                T.RandomCrop(self.size),
                 T.ToTensor(),
-                T.Normalize(mean=image_mean, std=image_std),
+                T.Normalize(mean=self.image_mean, std=self.image_std),
             ]
         )
         val_transforms = T.Compose(
             [
-                T.Resize((size, size)),
+                T.Lambda(lambda img: pad_to_aspect_ratio(img, aspect_ratio=0.75)),
+                T.Resize((self.size, self.size)),
                 T.ToTensor(),
-                T.Normalize(mean=image_mean, std=image_std),
+                T.Normalize(mean=self.image_mean, std=self.image_std),
             ]
         )
 
@@ -160,6 +162,26 @@ class HTSCUniformDataset:
             )
             for x in ["train", "val"]
         }
+
+    def visualize(self, subset="train"):
+        # get a batch from dataloader
+        inputs, classes = next(iter(self.dataloaders[subset]))
+
+        # make a grid from batch
+        grid = torchvision.utils.make_grid(inputs)
+
+        mean = np.array(self.image_mean).reshape(1, 1, 3)
+        std = np.array(self.image_std).reshape(1, 1, 3)
+
+        # imshow for tensor
+        grid = grid.numpy().transpose((1, 2, 0))
+        grid = grid * std + mean
+        grid = np.clip(grid, 0, 1)
+        plt.figure(figsize=(12, 3))
+        plt.imshow(grid)
+        plt.title(classes.numpy())
+        plt.axis("off")
+        plt.show()
 
 
 if __name__ == "__main__":
