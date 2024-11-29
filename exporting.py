@@ -38,7 +38,7 @@ class ONNXModel:
         # Warm up
         print("Warming up ...")
         for _ in range(10):
-            dummy_image = np.random.randn(1, 3, 224, 224).astype(np.float32)
+            dummy_image = np.random.randn(2, 3, 224, 224).astype(np.float32)
             self.gpu_session.run(None, {self.input_name: dummy_image})
             self.cpu_session.run(None, {self.input_name: dummy_image})
 
@@ -124,15 +124,28 @@ class ONNXModel:
 
 
 if __name__ == "__main__":
-    onnx_path = "mobilenet_v3_fp16.onnx"
+    onnx_path = "mobilenet_v3_softmax.onnx"
 
     if not os.path.exists(onnx_path):
+        print("File doesn't exist")
         model = models.MobileNetV3.load_from_checkpoint(
             "bidv_uniform_classification/icuw0hhe/checkpoints/best.ckpt"
         )
-        onnx_path = model.to_onnx_fp16(onnx_path)
+        onnx_path = model.to_onnx_fp16(
+            onnx_path,
+            input_names=["input"],
+            output_names=["output"],
+            dynamic_axes={
+                "input": {0: "batch"},
+                "output": {0: "batch"},
+            },
+        )
+    else:
+        print("File already exists")
+        root, ext = os.path.splitext(onnx_path)
+        onnx_path = f"{root}_fp16{ext}"
 
     onnx_model = ONNXModel(onnx_path)
-    # onnx_model.evaluate()
+    # onnx_model.evaluate_csv("datasets/uniform_bidv/three_classes/test.csv")
     print(onnx_model.inference("datasets/photo_2024-11-14_17-59-49.jpg"))
     print(onnx_model.inference("datasets/photo_2024-11-14_17-59-50.jpg"))

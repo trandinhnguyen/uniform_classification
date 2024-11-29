@@ -84,6 +84,8 @@ class Model(L.LightningModule):
         return sum(p.numel() for p in self.model.parameters())
 
     def to_onnx_fp16(self, output_path, **kwargs):
+        # Add softmax layer
+        self.model = nn.Sequential(self.model, nn.Softmax(dim=-1))
         self.to_onnx(output_path, **kwargs)
         onnx_fp32 = onnx.load_model(output_path)
         onnx_fp16 = float16.convert_float_to_float16(onnx_fp32, keep_io_types=True)
@@ -91,6 +93,9 @@ class Model(L.LightningModule):
         root, ext = os.path.splitext(output_path)
         onnx_fp16_path = f"{root}_fp16{ext}"
         onnx.save(onnx_fp16, onnx_fp16_path)
+
+        # Remove softmax layer
+        self.model = self.model[:-1]
         return onnx_fp16_path
 
 
